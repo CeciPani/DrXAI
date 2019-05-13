@@ -1,0 +1,3 @@
+python doctorAI3.py visit 4880 label 272 /home/user/venvs/drAI+/drAIplus/models/doctorAI_py3/model_output/CSSprediction_shuffle --n_epochs 20
+
+python testDoctorAI3.py CSSprediction_shuffle.19.npz visit.test label.test '[200,200]'
