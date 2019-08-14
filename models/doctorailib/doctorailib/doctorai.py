@@ -1,5 +1,5 @@
 from .utils_train import *
-from .metrics import calculate_auc
+from .metrics import calculate_auc, recallTop
 from .load_model import init_tparams as init_trained_theano_params
 from .load_model import build_model as build_trained_model
 from .load_model import padMatrixWithoutTime as padtrainedMatrixWithoutTime
@@ -12,14 +12,13 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 import numpy as np
 import heapq
 import operator
-import time
-import warnings
 
-#$ python doctorai.py visit 4880 label 272 /home/user/venvs/doctorailib/MIMICIII_data/doctorAI_output/CSSprediction --n_epochs 20
+
 class DoctorAI(object):
 
     def __init__(self,
                  ICD9_to_int_dict,
+                 CCS_to_int_dict=None,
                  embSize=200,
                  hiddenDimSize=[200, 200],
                  verbose=False):
@@ -31,6 +30,7 @@ class DoctorAI(object):
         :param verbose: Print output after every 10 mini-batches (default false)
         """
         self.ICD9_to_int_dict = ICD9_to_int_dict
+        self.CCS_to_int_dict = CCS_to_int_dict
         self.hiddenDimSize = hiddenDimSize
         self.embSize = embSize
         self.verbose = verbose
@@ -282,6 +282,7 @@ class DoctorAI(object):
     def predict_doctorAI(self,
                          modelFile,
                          patient_seq,
+                         future=False,
                          ICD9_format = False,
                          labelFile='',
                          timeFile='',
@@ -312,6 +313,10 @@ class DoctorAI(object):
 
         dict_icd2int = pickle.load(open(self.ICD9_to_int_dict, 'rb'))
         dict_int2icd = {v:k for k,v in dict_icd2int.items()}
+        if self.CCS_to_int_dict is not None:
+            dict_ccs2int = pickle.load(open(self.CCS_to_int_dict, 'rb'))
+            dict_int2ccs = {v: k for k, v in dict_ccs2int.items()}
+
 
         new_patient = [[dict_icd2int[x] for x in visit] for visit in patient_seq]
 
@@ -382,25 +387,35 @@ class DoctorAI(object):
                     predVec.append(list(zip(*heapq.nlargest(30, enumerate(output), key=operator.itemgetter(1))))[0])
             return predVec[-1]
 
-        ### uncomment the following line to predict the code at t+1 where t is the last visit in the dataset:
-        #xf, maskf, lengthsf = newpadMatrixWithoutTime([new_patient], options)
-        ### uncomment the following line to predict the code at t where t is the last visit in the dataset (for test purposes):
-        xf, maskf, lengthsf = padtrainedMatrixWithoutTime([new_patient],options)
+        if future:
+            ### uncomment the following line to predict the code at t+1 where t is the last visit in the dataset:
+            xf, maskf, lengthsf = newpadMatrixWithoutTime([new_patient], options)
+        else:
+            ### uncomment the following line to predict the code at t where t is the last visit in the dataset (for test purposes):
+            xf, maskf, lengthsf = padtrainedMatrixWithoutTime([new_patient],options)
+
         future_codeResults = predict_code(xf, maskf)
         future_predVec = pred_vec(new_patient, future_codeResults, lengthsf)
 
-        return [dict_int2icd[x] for x in future_predVec]
+        if self.CCS_to_int_dict is not None:
+            return [dict_int2ccs[x] for x in future_predVec]
+        else:
+            return [dict_int2icd[x] for x in future_predVec]
 
 
     def predict_doctorAI_batch(self,
                                modelFile,
                                patient_seqs,
+                               future = False,
                                batchSize=100,
                                timeFile='',
                                predictTime=False):
 
         dict_icd2int = pickle.load(open(self.ICD9_to_int_dict, 'rb'))
         dict_int2icd = {v: k for k, v in dict_icd2int.items()}
+        if self.CCS_to_int_dict is not None:
+            dict_ccs2int = pickle.load(open(self.CCS_to_int_dict, 'rb'))
+            dict_int2ccs = {v: k for k, v in dict_ccs2int.items()}
 
         #transform each patient in the internal integer-representation of ICD9 codes useful for doctorAI
         new_patient_seqs = [[[dict_icd2int[x] for x in visit] for visit in patient] for patient in patient_seqs]
@@ -455,11 +470,100 @@ class DoctorAI(object):
             #print(predVec)
             return predVecs
 
-        ### uncomment the following line to predict the code at t+1 where t is the last visit in the dataset:
-        #xf, maskf, lengthsf = newpadMatrixWithoutTime([new_patient], options)
-        ### uncomment the following line to predict the code at t where t is the last visit in the dataset (for test purposes):
-        xf, maskf, lengthsf = padtrainedMatrixWithoutTime(new_patient_seqs,options)
+        if future:
+            ### uncomment the following line to predict the code at t+1 where t is the last visit in the dataset:
+            xf, maskf, lengthsf = newpadMatrixWithoutTime(new_patient_seqs, options)
+        else:
+            ### uncomment the following line to predict the code at t where t is the last visit in the dataset (for test purposes):
+            xf, maskf, lengthsf = padtrainedMatrixWithoutTime(new_patient_seqs,options)
         future_codeResults = predict_code(xf, maskf)
         future_predVec = pred_vec(new_patient_seqs, future_codeResults, lengthsf)
 
-        return [[dict_int2icd[x] for x in prediction] for prediction in future_predVec] #future_predVec #[dict_int2icd[x] for x in future_predVec]
+        if self.CCS_to_int_dict is not None:
+            return [[dict_int2ccs[x] for x in prediction] for prediction in future_predVec]
+        else:
+            return [[dict_int2icd[x] for x in prediction] for prediction in future_predVec]
+
+
+
+    def test_doctorAI(self, modelFile, visit_test, label_test, hiddenDimSize, predictTime=False, timeFile='', batchSize=100, verbose=False):
+
+        options = locals().copy()
+        options['hiddenDimSize'] = self.hiddenDimSize
+        options['embSize'] = self.embSize
+
+        if len(timeFile) > 0:
+            useTime = True
+        else:
+            useTime = False
+        options['useTime'] = useTime
+
+        models = np.load(modelFile)
+        tparams = init_trained_theano_params(models)
+
+        print( 'build model ... ')
+
+        if predictTime:
+            x, t, mask, codePred, timePred = build_trained_model(tparams, options)
+            predict_code = theano.function(inputs=[x, t, mask], outputs=codePred, name='predict_code')
+            predict_time = theano.function(inputs=[x, t, mask], outputs=timePred, name='predict_time')
+        elif useTime:
+            x, t, mask, codePred = build_trained_model(tparams, options)
+            predict_code = theano.function(inputs=[x, t, mask], outputs=codePred, name='predict_code')
+        else:
+            x, mask, codePred = build_trained_model(tparams, options)
+            predict_code = theano.function(inputs=[x, mask], outputs=codePred, name='predict_code')
+
+        options['inputDimSize'] = models['W_emb'].shape[0]
+        options['numClass'] = models['b_output'].shape[0]
+        print('load data ... ')
+        testSet = test_load_data(visit_test, label_test, timeFile)
+        n_batches = int(np.ceil(float(len(testSet[0])) / float(batchSize)))
+        print('done')
+
+        predVec = []
+        trueVec = []
+        predTimeVec = []
+        trueTimeVec = []
+        iteration = 0
+
+        for batchIndex in range(n_batches):
+            tempX = testSet[0][batchIndex * batchSize: (batchIndex + 1) * batchSize]
+            tempY = testSet[1][batchIndex * batchSize: (batchIndex + 1) * batchSize]
+            if predictTime:
+                tempT = testSet[2][batchIndex * batchSize: (batchIndex + 1) * batchSize]
+                x, t, mask, lengths = padMatrixWithTimePrediction(tempX, tempT, options)
+                codeResults = predict_code(x, t, mask)
+                timeResults = predict_time(x, t, mask)
+            elif useTime:
+                tempT = testSet[2][batchIndex * batchSize: (batchIndex + 1) * batchSize]
+                x, t, mask, lengths = padMatrixWithTime(tempX, tempT, options)
+                codeResults = predict_code(x, t, mask)
+            else:
+                x, mask, lengths = padtrainedMatrixWithoutTime(tempX, options)
+                codeResults = predict_code(x, mask)
+
+            for i in range(codeResults.shape[1]):
+                tensorMatrix = codeResults[:, i, :]
+                thisY = tempY[i][1:]
+                for timeIndex in range(lengths[i]):
+                    if len(thisY[timeIndex]) == 0: continue
+                    trueVec.append(thisY[timeIndex])
+                    output = tensorMatrix[timeIndex]
+                    predVec.append(list(zip(*heapq.nlargest(30, enumerate(output), key=operator.itemgetter(1))))[0])
+
+            if predictTime:
+                for i in range(timeResults.shape[1]):
+                    timeVec = timeResults[:, i]
+                    trueTimeVec.extend(tempT[i][1:])
+                    for timeIndex in range(lengths[i]):
+                        predTimeVec.append(timeVec[timeIndex])
+
+            if (iteration % 10 == 0) and verbose: print(f'iteration:{iteration}/{n_batches}')
+            iteration += 1
+            if iteration == 10: break
+
+        recall = recallTop(trueVec, predVec)
+        print(f'recall@10:{recall[0]}, recall@20:{recall[1]}, recall@30:{recall[2]}')
+
+        return

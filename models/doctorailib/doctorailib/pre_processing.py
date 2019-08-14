@@ -13,9 +13,10 @@
 import os
 import pickle
 import pandas as pd
+import numpy as np
 from datetime import datetime
 from sklearn.model_selection import train_test_split
-
+from collections import defaultdict
 
 def _convert_to_icd9(dxStr):
     if dxStr.startswith('E'):
@@ -25,49 +26,46 @@ def _convert_to_icd9(dxStr):
         if len(dxStr) > 3: return dxStr[:3] + '.' + dxStr[3:]
         else: return dxStr
 
-def _convert_to_3digit_icd9(dxStr):
-    if dxStr.startswith('E'):
-        if len(dxStr) > 4: return dxStr[:4]
-        else: return dxStr
-    else:
-        if len(dxStr) > 3: return dxStr[:3]
-        else: return dxStr
-
-def _prepare_mimic(path):
+def prepare_mimic(mimic_path, input_path, output_path, CSS=False):
     """
     This function removes the admissions without diagnosis code and save the "cleaned tables in the same folder as the old tables"
     :param path: str, input path where the MIMIC tabels are stored (ADMISSIONS.csv and DIAGNOSES_ICD.csv)
      e.g. /home/user/venvs/drAI+/drAIplus/data/MIMIC_data/
     """
-    admissionFile = path + 'ADMISSIONS.csv'
-    diagnosisFile = path + 'DIAGNOSES_ICD.csv'
 
-    diag_csv = pd.read_csv(diagnosisFile)
-    admission_csv = pd.read_csv(admissionFile)
+    ################################### REMOVING PROBLMES WITH MIMIC DATA ##############################################
+
+    admissionFile = mimic_path + 'ADMISSIONS.csv'
+    diagnosisFile = mimic_path + 'DIAGNOSES_ICD.csv'
+
+    try:
+        diag_csv = pd.read_csv(diagnosisFile)
+    except:
+        print(f'There is no "DIAGNOSES_ICD.csv" file in {mimic_path}')
+
+    try:
+        admission_csv = pd.read_csv(admissionFile)
+    except:
+        print(f'There is no "ADMISSIONS.csv" file in {mimic_path}')
+
 
     ratio_of_null = len(diag_csv[diag_csv.ICD9_CODE.isna()]) / float(len(diag_csv))
-    print(f'{ratio_of_null}% of diagnoses do not have the related ICD9 code associated (NaN values)')
+    print(f'{round(ratio_of_null,5)} % of diagnoses do not have the related ICD9 code associated (NaN values)')
     #drop the cases where there is no diagnosis code
     #remove the admissions where there is no ICD9 code
     print("dropping the cases where there is no ICD9 code in the DIAGNOSES_ICD table")
     clean_diag_df = diag_csv.dropna(subset=['ICD9_CODE'])
 
-    clean_diag_df.to_csv(path + 'clean_DIAGNOSES_ICD.csv', index=False)
+    clean_diag_df.to_csv(mimic_path + 'clean_DIAGNOSES_ICD.csv', index=False)
     clean_admission_df = admission_csv[admission_csv.HADM_ID.isin(clean_diag_df.HADM_ID)]
-    clean_admission_df.to_csv(path + 'clean_ADMISSIONS.csv', index=False)
+    clean_admission_df.to_csv(mimic_path + 'clean_ADMISSIONS.csv', index=False)
+    print()
+    print(f'Created "clean_DIAGNOSES_ICD.csv" and "clean_ADMISSIONS.csv" in {mimic_path}')
 
-    return
+    admissionFile = mimic_path + 'clean_ADMISSIONS.csv'
+    diagnosisFile = mimic_path + 'clean_DIAGNOSES_ICD.csv'
 
-
-def _css_preprocessing():
-
-    # dictionary with key the ICD9 code and value the CSS grouper
-    css_grouper = pickle.load(open("./conv_dict", "rb"))
-    css_grouper
-
-    return
-
-def _pids_dates_seqs_types(admissionFile,diagnosisFile,output_path,ccs):
+    ###################################### CRETING THE FILES FOR DOCTORAI TRAINING #####################################
 
     print('Building pid-admission mapping, admission-date mapping')
     pidAdmMap = {}
@@ -97,23 +95,21 @@ def _pids_dates_seqs_types(admissionFile,diagnosisFile,output_path,ccs):
         # print(tokens[4])
         #############################################
         admId = int(tokens[2])
-        # dxStr = 'D_' + _convert_to_icd9(tokens[4][1:-1]) ############## Uncomment this line and comment the line below, if you want to use the entire ICD9 digits.
-        # dxStr = 'D_' + _convert_to_icd9(tokens[4])
+        # dxStr = 'D_' + convert_to_icd9(tokens[4][1:-1]) ############## Uncomment this line and comment the line below, if you want to use the entire ICD9 digits.
+        # dxStr = 'D_' + convert_to_icd9(tokens[4])
         dxStr = _convert_to_icd9(tokens[4])
-        # dxStr = 'D_' + _convert_to_3digit_icd9(tokens[4][1:-1])
+        # dxStr = 'D_' + convert_to_3digit_icd9(tokens[4][1:-1])
         if admId in admDxMap:
             admDxMap[admId].append(dxStr)
         else:
             admDxMap[admId] = [dxStr]
     infd.close()
-
     print('Building pid-sortedVisits mapping')
     pidSeqMap = {}
     for pid, admIdList in pidAdmMap.items():
         if len(admIdList) < 2: continue
         sortedList = sorted([(admDateMap[admId], admDxMap[admId]) for admId in admIdList])
         pidSeqMap[pid] = sortedList
-
     print('Building pids, dates, strSeqs')
     pids = []
     dates = []
@@ -127,7 +123,6 @@ def _pids_dates_seqs_types(admissionFile,diagnosisFile,output_path,ccs):
             seq.append(visit[1])
         dates.append(date)
         seqs.append(seq)
-
     print('Converting strSeqs to intSeqs, and making types')
     types = {}
     newSeqs = []
@@ -144,73 +139,80 @@ def _pids_dates_seqs_types(admissionFile,diagnosisFile,output_path,ccs):
             newPatient.append(newVisit)
         newSeqs.append(newPatient)
 
+    np.save(mimic_path+'mimic_sequences', np.array(seqs))
+    path_mapping = input_path+'ICD9_to_int_dict'
+    pickle.dump(types, open(path_mapping, 'wb'), -1)
+    print(f'number of unique ICD9 codes in mimic: {len(set([a for b in [a for b in newSeqs for a in b] for a in b]))}')
+    visit_file = newSeqs
 
-    flat_list = []
-    for patient in newSeqs:
-        for visit in patient:
-            for code in visit:
-                flat_list.append(code)
+    if CSS:
+        # the CCS grouper can be downloaded here: https://www.nber.org/data/icd-ccs-crosswalk.html
+        #css_grouper_csv_file_path = os.path.join(os.path.dirname(__file__), 'dxicd2ccsxw.csv')
+        css_grouper_csv_file_path = input_path+'dxicd2ccsxw.csv'
+        CSS_grouper_csv = pd.read_csv(css_grouper_csv_file_path)
+        new_dict_types = defaultdict(int)
 
-    print(f'number of uniques codes: {len(set(flat_list))}')
+        for item in types.items():
+            clean_ICD9 = item[0].replace('.', '')
+            if len(clean_ICD9) == 0:
+                clean_ICD9 = 'unknown'
+            new_dict_types[clean_ICD9] = item[1]
 
-    pickle.dump(pids, open(output_path + '.pids', 'wb'), -1)
-    pickle.dump(dates, open(output_path + '.dates', 'wb'), -1)
-    pickle.dump(newSeqs, open(output_path + '.seqs', 'wb'), -1)
-    pickle.dump(types, open(output_path + '.types', 'wb'), -1)
+        types_df = pd.Series(new_dict_types).reset_index().rename(columns={'index': 'icd', 0: 'internal_code'})
+        mapping = pd.merge(types_df, CSS_grouper_csv)[['ccs', 'internal_code']]
+        mapping_dict = dict(zip(mapping.internal_code, mapping.ccs))
+        newSeqs_ccs = [[list(np.vectorize(mapping_dict.get)(np.array(visit))) for visit in patient] for patient in newSeqs]
 
-    print('creating visit and label ".train", ".valid", and ".test')
-    #"visit file" is clean_mimic.seqs
-    visit_file = seqs
-    #"label file" could be the same as the visit file, or a grouped version using CCS groupers
-    if ccs: #if we want to group the labels
-        newCCSseq = _css_preprocessing()
-        label_file = newCCSseq
+        print(f'number of unique CSS-grouper codes in mimic: {len(set([a for b in [a for b in newSeqs_ccs for a in b] for a in b]))}')
+
+        print('Converting strSeqs to intSeqs, and making CCStypes')
+        CCStypes = {}
+        newCSSSeqs = []
+        for patient in newSeqs_ccs:
+            newPatient = []
+            for visit in patient:
+                newVisit = []
+                for code in visit:
+                    if code in CCStypes:
+                        newVisit.append(CCStypes[code])
+                    else:
+                        CCStypes[code] = len(CCStypes)
+                        newVisit.append(CCStypes[code])
+                newPatient.append(newVisit)
+            newCSSSeqs.append(newPatient)
+
+        path_CCS = input_path+'CCS_to_int_dict'
+        pickle.dump(CCStypes, open(path_CCS, 'wb'), -1)
+        label_file = newCSSSeqs
     else:
-        label_file = seqs
+        label_file = newSeqs
 
-    visit_train, visit_Test, label_train, label_Test = train_test_split(visit_file, label_file, test_size=0.33,
-                                                                        random_state=42)
-    visit_test, visit_valid, label_test, label_valid = train_test_split(visit_Test, label_Test, test_size=0.33,
-                                                                        random_state=42)
+    pickle.dump(visit_file, open(output_path + 'visit_complete', 'wb'), protocol=-1)
+    pickle.dump(label_file, open(output_path + 'label_complete', 'wb'), protocol=-1)
 
-    pickle.dump(visit_train, open(output_path + 'visit.train', 'wb'), -1)
-    pickle.dump(visit_valid, open(output_path + 'visit.valid', 'wb'), -1)
-    pickle.dump(visit_test, open(output_path + 'visit.test', 'wb'), -1)
+    visit_train, visit_Test, label_train, label_Test = train_test_split(visit_file, label_file, test_size=0.33, random_state=42)
+    visit_test, visit_valid, label_test, label_valid = train_test_split(visit_Test, label_Test, test_size=0.33, random_state=42)
 
-    pickle.dump(label_train, open(output_path + 'label.train', 'wb'), -1)
-    pickle.dump(label_valid, open(output_path + 'label.valid', 'wb'), -1)
-    pickle.dump(label_test, open(output_path + 'label.test', 'wb'), -1)
-
-    len(visit_train), len(visit_test), len(visit_valid)
+    pickle.dump(visit_train, open(output_path + 'visit.train', 'wb'), protocol=-1)
+    pickle.dump(visit_valid, open(output_path + 'visit.valid', 'wb'), protocol=-1)
+    pickle.dump(visit_test, open(output_path + 'visit.test', 'wb'), protocol=-1)
+    pickle.dump(label_train, open(output_path + 'label.train', 'wb'), protocol=-1)
+    pickle.dump(label_valid, open(output_path + 'label.valid', 'wb'), protocol=-1)
+    pickle.dump(label_test, open(output_path + 'label.test', 'wb'), protocol=-1)
+    print()
+    print(f'You can use the files visit and label (.train/.valid/.test) in {output_path} to train doctorAI:')
+    print(f'seqFile="{output_path}visit"')
+    print(f'labelFile="{output_path}label"')
+    print(f'outFile="<output_path>/trained_drAI_model"')
+    if CSS:
+        print(f'dr = doctorai.DoctorAI(ICD9_to_int_dict="{input_path}/CCS_to_int_dict",verbose=True)')
+        print("dr.train_doctorAI(seqFile=seqFile, inputDimSize=4880, labelFile=labelFile, numClass=272, outFile=outFile, max_epochs=50)")
+    else:
+        print(f'dr = doctorai.DoctorAI(ICD9_to_int_dict="{input_path}/ICD9_to_int_dict",verbose=True)')
+        print("dr.train_doctorAI(seqFile=seqFile, inputDimSize=4880, labelFile=labelFile, numClass=4880, outFile=outFile, max_epochs=50)")
 
     return
 
 
-def mimic_preprocessing(path, output_path, ccs=False):
-    """
-    :param path: str, input path where the MIMIC tabels are stored (ADMISSIONS.csv and DIAGNOSES_ICD.csv)
-     e.g. /home/user/venvs/drAI+/drAIplus/data/MIMIC_data/
-    :param output_path: str, output path where you want to store the files for doctorAI training
-     e.g. /home/user/venvs/drAI+/drAIplus/data/doctorAI_preprocessing_output/
-    :param ccs: default False, switch to True if you want to perfrom a CCS grouper on the sequences
-    :return:
-    """
 
-    #checking if the ADMISSIONS.csv and DIAGNOSES_ICD.csv have already been cleaned
-    admission_exists = os.path.isfile(path+'clean_ADMISSIONS.csv')
-    diagnosis_exists = os.path.isfile(path+'clean_DIAGNOSES_ICD.csv')
-
-    admissionFile = path + 'clean_ADMISSIONS.csv'
-    diagnosisFile = path + 'clean_DIAGNOSES_ICD.csv'
-
-    if admission_exists & diagnosis_exists: #if the clean tables exist
-        # create the train and test files (sequences)
-        _pids_dates_seqs_types(admissionFile,diagnosisFile,output_path, ccs)
-        return
-    else:  #if the clean tables do not exist
-        #create the clean tables
-        _prepare_mimic(path)
-        #create the train and test files (sequences)
-        _pids_dates_seqs_types(admissionFile,diagnosisFile,output_path,ccs)
-        return
 

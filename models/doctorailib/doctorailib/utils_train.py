@@ -221,3 +221,24 @@ def load_data(seqFile, labelFile, timeFile):
 	test_set = (test_set_x, test_set_y, test_set_t)
 
 	return train_set, valid_set, test_set
+
+
+def test_load_data(dataFile, labelFile, timeFile):
+	test_set_x = np.array(pickle.load(open(dataFile, 'rb')))
+	test_set_y = np.array(pickle.load(open(labelFile, 'rb')))
+	test_set_t = None
+	if len(timeFile) > 0:
+		test_set_t = np.array(pickle.load(open(timeFile, 'rb')))
+
+	def len_argsort(seq):
+		return sorted(range(len(seq)), key=lambda x: len(seq[x]))
+
+	sorted_index = len_argsort(test_set_x)
+	test_set_x = [test_set_x[i] for i in sorted_index]
+	test_set_y = [test_set_y[i] for i in sorted_index]
+	if len(timeFile) > 0:
+		test_set_t = [test_set_t[i] for i in sorted_index]
+
+	test_set = (test_set_x, test_set_y, test_set_t)
+
+	return test_set
