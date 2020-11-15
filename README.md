@@ -10,7 +10,7 @@ DoctorXAI is an ontology-based approach to black box sequential data classificat
 
 Having such characteristics makes DoctorXAI well suited to explain black boxes that deal with healthcare data. Indeed healthcare data are often sequential (e.g. patient's clinical history), multi labeled (in case of comorbidities) and ontology-linked (the medical knowledge is encoded in ontologies).
 
-This project is based on our paper *Doctor XAI: an ontology-based approach to black-box sequential data classification explanations* published on the *FAT* '20: Proceedings of the 2020 Conference on Fairness, Accountability, and Transparency*:
+This project is based on our paper *Doctor XAI: an ontology-based approach to black-box sequential data classification explanations* published on the *FAT* *'20: Proceedings of the 2020 Conference on Fairness, Accountability, and Transparency*:
 
 ```
 @inproceedings{panigutti2020doctor,
