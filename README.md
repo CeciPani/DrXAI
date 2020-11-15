@@ -80,7 +80,9 @@ You need to set CCS = True in the prepare_mimic method to make doctorAI predict 
 
 ```python
 from doctorailib import pre_processing
-pre_processing.prepare_mimic(mimic_path=mimic_path, CCS_grouper_csv_file_path=CCS_grouper_csv_file_path, output_path=output_path, CCS=True)
+pre_processing.prepare_mimic(mimic_path=mimic_path, 
+                             CCS_grouper_csv_file_path=CCS_grouper_csv_file_path, 
+                             output_path=output_path, CCS=True)
 ```
 
 ### Training or loading a pre-trained doctor AI model
@@ -100,11 +102,11 @@ dr = doctorai.DoctorAI(ICD9_to_int_dict="./preprocessing_doctorai/ICD9_to_int_di
                        verbose=True)
 
 dr.train(seqFile=seqFile, 
-                  inputDimSize=4880, 
-                  labelFile=labelFile, 
-                  numClass=272, 
-                  outFile=outFile, 
-                  max_epochs=50)
+         inputDimSize=4880, 
+         labelFile=labelFile, 
+         numClass=272, 
+         outFile=outFile, 
+         max_epochs=50)
 ```
 
 Otherwise you can load your model and test its recall@k performance running the following code:
@@ -118,7 +120,10 @@ dr = doctorai.DoctorAI(modelFile=model_file,
 #test set performance
 visit_test = "./preprocessing_doctorai/visit.test"
 label_test = "./preprocessing_doctorai/label.test"
-dr.test_doctorAI(modelFile=model_file, hiddenDimSize=[200,200], visit_test=visit_test, label_test=label_test)
+dr.test_doctorAI(modelFile=model_file, 
+                 hiddenDimSize=[200,200], 
+                 visit_test=visit_test, 
+                 label_test=label_test)
 
 ```
         build model ... 
