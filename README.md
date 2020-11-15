@@ -218,7 +218,7 @@ drXAI.visualize_explanation()
 ```
 
 
-![png](https://github.com/CeciPani/DrXAI/doctorXAI_explanation_visualization.png)
+![png](https://github.com/CeciPani/DrXAI/blob/master/doctorXAI_explanation_visualization.png)
 
 
 
