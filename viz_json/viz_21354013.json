@@ -1,0 +1,174 @@
+{
+  "config": {"view": {"continuousWidth": 400, "continuousHeight": 300}},
+  "data": {
+    "values": [
+      {
+        "symptom": "414.01",
+        "descr": "Coronary atherosclerosis of native coronary artery",
+        "visit": 0,
+        "ranking": 0,
+        "freq": 2,
+        "presence": "N"
+      },
+      {
+        "symptom": "996.72",
+        "descr": "Other complications due to other cardiac device, implant, and graft",
+        "visit": 0,
+        "ranking": 1,
+        "freq": 2,
+        "presence": "N"
+      },
+      {
+        "symptom": "411.1",
+        "descr": "Intermediate coronary syndrome",
+        "visit": 0,
+        "ranking": 2,
+        "freq": 2,
+        "presence": "N"
+      },
+      {
+        "symptom": "401.9",
+        "descr": "Unspecified essential hypertension",
+        "visit": 0,
+        "ranking": 3,
+        "freq": 2,
+        "presence": "N"
+      },
+      {
+        "symptom": "272.4",
+        "descr": "Other and unspecified hyperlipidemia",
+        "visit": 0,
+        "ranking": 4,
+        "freq": 1,
+        "presence": "N"
+      },
+      {
+        "symptom": "E878.1",
+        "descr": "Surgical operation with implant of artificial internal device causing abnormal patient reaction, or later complication,without mention of misadventure at time of operation",
+        "visit": 1,
+        "ranking": 0,
+        "freq": 1,
+        "presence": "N"
+      },
+      {
+        "symptom": "530.81",
+        "descr": "Esophageal reflux",
+        "visit": 1,
+        "ranking": 1,
+        "freq": 1,
+        "presence": "N"
+      },
+      {
+        "symptom": "278.00",
+        "descr": "Obesity, unspecified",
+        "visit": 1,
+        "ranking": 2,
+        "freq": 1,
+        "presence": "N"
+      },
+      {
+        "symptom": "414.01",
+        "descr": "Coronary atherosclerosis of native coronary artery",
+        "visit": 1,
+        "ranking": 3,
+        "freq": 2,
+        "presence": "P"
+      },
+      {
+        "symptom": "411.1",
+        "descr": "Intermediate coronary syndrome",
+        "visit": 1,
+        "ranking": 4,
+        "freq": 2,
+        "presence": "N"
+      },
+      {
+        "symptom": "272.0",
+        "descr": "Pure hypercholesterolemia",
+        "visit": 1,
+        "ranking": 5,
+        "freq": 1,
+        "presence": "N"
+      },
+      {
+        "symptom": "996.72",
+        "descr": "Other complications due to other cardiac device, implant, and graft",
+        "visit": 1,
+        "ranking": 6,
+        "freq": 2,
+        "presence": "N"
+      },
+      {
+        "symptom": "401.9",
+        "descr": "Unspecified essential hypertension",
+        "visit": 1,
+        "ranking": 7,
+        "freq": 2,
+        "presence": "N"
+      },
+      {
+        "symptom": "V45.82",
+        "descr": "Percutaneous transluminal coronary angioplasty status",
+        "visit": 1,
+        "ranking": 8,
+        "freq": 1,
+        "presence": "N"
+      },
+      {
+        "symptom": "V43.65",
+        "descr": "Knee joint replacement",
+        "visit": 1,
+        "ranking": 0,
+        "freq": 0,
+        "presence": "A"
+      },
+      {
+        "symptom": "824.4",
+        "descr": "Bimalleolar fracture, closed",
+        "visit": 1,
+        "ranking": 1,
+        "freq": 0,
+        "presence": "A"
+      },
+      {
+        "symptom": "427.31",
+        "descr": "Atrial fibrillation",
+        "visit": 1,
+        "ranking": 2,
+        "freq": 0,
+        "presence": "A"
+      },
+      {
+        "symptom": "600.00",
+        "descr": "Hypertrophy (benign) of prostate without urinary obstruction and other lower urinary tract symptom (LUTS)",
+        "visit": 1,
+        "ranking": 3,
+        "freq": 0,
+        "presence": "A"
+      }
+    ]
+  },
+  "mark": {"type": "circle", "size": 70},
+  "encoding": {
+    "color": {
+      "type": "nominal",
+      "field": "presence",
+      "scale": {
+        "domain": ["P", "N", "A"],
+        "range": ["#c51b7d", "lightgray", "#4d9221"],
+        "reverse": true
+      }
+    },
+    "tooltip": [
+      {"type": "nominal", "field": "symptom"},
+      {"type": "nominal", "field": "descr"}
+    ],
+    "x": {"type": "ordinal", "field": "visit"},
+    "y": {
+      "type": "nominal",
+      "field": "descr",
+      "sort": {"field": "freq", "order": "ascending"}
+    }
+  },
+  "$schema": "https://vega.github.io/schema/vega-lite/v4.8.1.json"
+}
